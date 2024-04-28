@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"encore.app/models"
 	"encore.dev/rlog"
 )
 
@@ -28,7 +29,7 @@ func DiscordWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var discordMsgEvent DiscordRawMessageEvent
+	var discordMsgEvent models.DiscordRawMessage
 	if err := json.Unmarshal(body, &discordMsgEvent); err != nil {
 		http.Error(w, "Error unmarshalling request body", http.StatusInternalServerError)
 		return

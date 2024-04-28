@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"encore.app/discord_handler"
+	"encore.app/models"
 	"encore.app/packages/llmservice"
 	"encore.dev/pubsub"
 	"encore.dev/rlog"
@@ -42,11 +43,11 @@ func initService() (*Service, error) {
 var _ = pubsub.NewSubscription(
 	discord_handler.DiscordRawMessageTopic,
 	"forum-post-tagger",
-	pubsub.SubscriptionConfig[*discord_handler.DiscordRawMessageEvent]{
+	pubsub.SubscriptionConfig[*models.DiscordRawMessage]{
 		RetryPolicy: &pubsub.RetryPolicy{
 			MaxRetries: 5,
 		},
-		Handler: func(ctx context.Context, message *discord_handler.DiscordRawMessageEvent) error {
+		Handler: func(ctx context.Context, message *models.DiscordRawMessage) error {
 			rlog.Info("Received raw discord message", "discordMessage", message)
 			service, err := initService()
 			if err != nil {
@@ -57,7 +58,7 @@ var _ = pubsub.NewSubscription(
 		},
 	})
 
-func (s *Service) TriageDiscordMessage(ctx context.Context, message *discord_handler.DiscordRawMessageEvent) error {
+func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.DiscordRawMessage) error {
 	forumPostChannel, err := s.discordClient.Channel(message.ChannelID)
 	if err != nil {
 		return fmt.Errorf("couldn't get discord channel: %w", err)
