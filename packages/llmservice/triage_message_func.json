@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "topic": { "type": "string", "enum": ["product_related_question", "other"] }
+  },
+  "required": ["topic"]
+}

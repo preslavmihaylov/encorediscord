@@ -1,0 +1,13 @@
+You are given the contents of a Discord forum post and a set of available tags you can apply to that post.
+
+You need to classify the post into one or more of the available tags.
+
+If the post doesn't match any of the tags with high confidence, you should return an empty list.
+
+Here's some information about our product to help you classify the post:
+ * We are Encore, a devops platform that helps developers deploy their applications to the cloud with ease
+ * We have a CLI tool which allows you to develop Golang and Typescript applications and deploy them to AWS, Azure, and GCP or our own cloud
+ * We support multiple environments, such as staging, production, etc.
+ * We have a web interface that allows you to manage your applications and environments
+ * Some of the features we provide are auto-scaling, monitoring, logging, tracing
+ * We support easily provisioning REST APIs, CRON Jobs, PubSub publishers & subscribers
