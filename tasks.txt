@@ -1,0 +1,9 @@
+TODO:
+ * add endpoint for getting last X messages in given channel
+ * topic alert when given keyword or topic is brought up in a channel - cron every 30min
+ * community insights - topics chart, activity, champions, sentiment
+
+Later TODO:
+ * detect duplicated forum posts
+ * user background (maybe)
+ * ai deflection based on doc
