@@ -18,6 +18,7 @@ var secrets struct {
 
 // #support
 const forumChannelID = "1233297799366311977"
+const generalChannelID = "1086301297201909864"
 
 // Service for upserting messages posted on a text channel as forum posts
 // if they match a set of predefined topics
@@ -62,8 +63,8 @@ func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.Disc
 	}
 
 	rlog.Info("channel ID", "channelID", message.ChannelID, "parentId", discordChannel.ParentID)
-	if discordChannel.Type != discordgo.ChannelTypeGuildText {
-		rlog.Warn("Ignoring message for non-text channel", "channelName", discordChannel.Name)
+	if discordChannel.ID != generalChannelID {
+		rlog.Info("Ignoring message for non-general channel", "channelName", discordChannel.Name)
 		return nil
 	}
 

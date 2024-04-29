@@ -13,3 +13,10 @@ type DiscordRawMessage struct {
 	Content         string                    `json:"content"`
 	CleanContent    string                    `json:"cleanContent"`
 }
+
+type ConversationAlert struct {
+	ID        string   `json:"id"`
+	Keywords  []string `json:"keywords"`
+	Topics    []string `json:"topics"`
+	ChannelID string   `json:"channel"`
+}

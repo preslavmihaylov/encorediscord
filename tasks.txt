@@ -7,3 +7,7 @@ Later TODO:
  * detect duplicated forum posts
  * user background (maybe)
  * ai deflection based on doc
+
+Channel IDs for reference:
+ * conversation-alerts - 1234396668837892107
+ * general - 1086301297201909864
