@@ -9,6 +9,8 @@ import (
 
 	_ "embed"
 
+	"encore.app/models"
+	"encore.dev/rlog"
 	"github.com/samber/lo"
 	"github.com/tyloafer/langchaingo/llms"
 	"github.com/tyloafer/langchaingo/llms/openai"
@@ -34,6 +36,9 @@ var tagForumPostPrompt string
 
 //go:embed set_message_title_func_schema.json
 var setMessageTitleFuncSchema string
+
+//go:embed find_messages_matching_topic_prompt.txt
+var findMessagesMatchingTopicPrompt string
 
 func NewService() (*Service, error) {
 	client, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
@@ -150,4 +155,66 @@ func (s *Service) SuggestTitleForMessage(ctx context.Context, messageContents st
 	}
 
 	return result.Title, nil
+}
+
+func (s *Service) FindMessagesMatchingTopic(
+	ctx context.Context,
+	messages []*models.DiscordRawMessage,
+	topics []string,
+) ([]*models.DiscordRawMessage, error) {
+	if len(messages) == 0 {
+		return []*models.DiscordRawMessage{}, nil
+	}
+
+	var llmFunctions = []llms.FunctionDefinition{
+		{
+			Name:        "setMatchingMessages",
+			Description: "Sets the messages, matching the given topic via their ID",
+			Parameters: json.RawMessage(fmt.Sprintf(`
+				{
+				  "type": "object",
+				  "properties": {
+					"messageIds": { 
+					  "type": "array", 
+					  "items": { 
+					    "type": "integer"
+					  } 
+					}
+				  },
+				  "required": ["messageIds"]
+				}
+			`)),
+		},
+	}
+
+	messagesInput := strings.Join(lo.Map(messages, func(message *models.DiscordRawMessage, i int) string {
+		return fmt.Sprintf("\n%d:\n---\n%s\n---\n", i, message.CleanContent)
+	}), "")
+
+	rlog.Info("DEBUG1", "msgs", messagesInput)
+	completion, err := s.client.Call(ctx, []schema.ChatMessage{
+		schema.HumanChatMessage{Content: fmt.Sprintf(findMessagesMatchingTopicPrompt, strings.Join(topics, ", "))},
+		schema.HumanChatMessage{Content: "What follow is details about the provided messages..."},
+		schema.HumanChatMessage{Content: messagesInput},
+	}, llms.WithFunctions(llmFunctions))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't call openai: %w", err)
+	}
+
+	var result struct {
+		MessageIDs []int `json:"messageIds"`
+	}
+
+	rlog.Info("DEBUG", "funccall", completion.FunctionCall)
+	if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
+		return nil, fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
+	}
+
+	return lo.Map(result.MessageIDs, func(id int, _ int) *models.DiscordRawMessage {
+		if (id < 0) || (id >= len(messages)) {
+			panic(fmt.Sprintf("invalid message ID: %d", id))
+		}
+
+		return messages[id]
+	}), nil
 }

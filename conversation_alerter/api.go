@@ -33,3 +33,29 @@ func CreateConversationAlert(
 
 	return &conversationAlert, nil
 }
+
+type ListConversationAlertsResponse struct {
+	ConversationAlerts []*models.ConversationAlert `json:"conversation_alerts"`
+}
+
+// ListConversationAlerts lists all conversation alerts.
+//
+//encore:api private method=GET path=/conversation-alerts
+func ListConversationAlerts(ctx context.Context) (*ListConversationAlertsResponse, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, keywords, topics, channel_id
+		FROM conversation_alerts
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get conversation alerts: %w", err)
+	}
+
+	conversationAlerts, err := models.MapConversationAlertsFromSQLRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't map conversation alerts: %w", err)
+	}
+
+	return &ListConversationAlertsResponse{
+		ConversationAlerts: conversationAlerts,
+	}, nil
+}

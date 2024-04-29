@@ -37,24 +37,25 @@ func SearchMessages(ctx context.Context, searchTerm string) (*SearchMessagesResp
 	return &SearchMessagesResponse{Messages: messages}, nil
 }
 
-type GetMessagesInTimeRangeRequest struct {
-	Start time.Time `query:"start"`
-	End   time.Time `query:"end"`
+type ListMessagesRequest struct {
+	ChannelID string    `query:"channel_id"`
+	Start     time.Time `query:"start"`
+	End       time.Time `query:"end"`
 }
 
 // ListMessages searches for messages in the specified time range.
 //
 //encore:api private method=GET path=/messages
 func ListMessages(
-	ctx context.Context, request *GetMessagesInTimeRangeRequest,
+	ctx context.Context, request *ListMessagesRequest,
 ) (*SearchMessagesResponse, error) {
 	rows, err := db.Query(ctx, `
 		SELECT 
 			id, interaction_type, channel_id, guild_id, 
 			author_id, content, clean_content
 		FROM discord_messages
-		WHERE created_at BETWEEN $1 AND $2
-	`, request.Start, request.End)
+		WHERE created_at BETWEEN $1 AND $2 AND channel_id = $3
+	`, request.Start, request.End, request.ChannelID)
 	if err != nil {
 		return nil, err
 	}

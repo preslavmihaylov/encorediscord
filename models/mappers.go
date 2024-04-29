@@ -34,3 +34,19 @@ func MapDiscordRawMessagesFromSQLRows(rows *sqldb.Rows) ([]*DiscordRawMessage, e
 
 	return messages, nil
 }
+
+func MapConversationAlertsFromSQLRows(rows *sqldb.Rows) ([]*ConversationAlert, error) {
+	var cvs []*ConversationAlert
+	for rows.Next() {
+		var cv ConversationAlert
+		err := rows.Scan(
+			&cv.ID, &cv.Topics, &cv.Keywords, &cv.ChannelID)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't scan message: %w", err)
+		}
+
+		cvs = append(cvs, &cv)
+	}
+
+	return cvs, nil
+}
