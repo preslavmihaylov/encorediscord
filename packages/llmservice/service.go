@@ -168,33 +168,33 @@ func (s *Service) FindMessagesMatchingTopic(
 
 	var llmFunctions = []llms.FunctionDefinition{
 		{
-			Name:        "setMatchingMessages",
-			Description: "Sets the messages, matching the given topic via their ID",
+			Name:        "setMessagesMatchingTopics",
+			Description: "Sets the message IDs, matching the given topics",
 			Parameters: json.RawMessage(fmt.Sprintf(`
 				{
 				  "type": "object",
 				  "properties": {
-					"messageIds": { 
+					"matchingMessages": { 
 					  "type": "array", 
 					  "items": { 
 					    "type": "integer"
 					  } 
 					}
 				  },
-				  "required": ["messageIds"]
+				  "required": ["matchingMessages"]
 				}
 			`)),
 		},
 	}
 
 	messagesInput := strings.Join(lo.Map(messages, func(message *models.DiscordRawMessage, i int) string {
-		return fmt.Sprintf("\n%d:\n---\n%s\n---\n", i, message.CleanContent)
+		return fmt.Sprintf("\nmessage %d:\n---\n%s\n---\n", i, message.CleanContent)
 	}), "")
 
-	rlog.Info("DEBUG1", "msgs", messagesInput)
+	rlog.Info("DEBUG1", "msgs", messagesInput, "prompt", findMessagesMatchingTopicPrompt, "topics", strings.Join(topics, ", "))
 	completion, err := s.client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: fmt.Sprintf(findMessagesMatchingTopicPrompt, strings.Join(topics, ", "))},
-		schema.HumanChatMessage{Content: "What follow is details about the provided messages..."},
+		schema.HumanChatMessage{Content: "Here's the messages you have to match:"},
 		schema.HumanChatMessage{Content: messagesInput},
 	}, llms.WithFunctions(llmFunctions))
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *Service) FindMessagesMatchingTopic(
 	}
 
 	var result struct {
-		MessageIDs []int `json:"messageIds"`
+		MatchingMessages []int `json:"matchingMessages"`
 	}
 
 	rlog.Info("DEBUG", "funccall", completion.FunctionCall)
@@ -210,7 +210,7 @@ func (s *Service) FindMessagesMatchingTopic(
 		return nil, fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
 	}
 
-	return lo.Map(result.MessageIDs, func(id int, _ int) *models.DiscordRawMessage {
+	return lo.Map(result.MatchingMessages, func(id int, _ int) *models.DiscordRawMessage {
 		if (id < 0) || (id >= len(messages)) {
 			panic(fmt.Sprintf("invalid message ID: %d", id))
 		}

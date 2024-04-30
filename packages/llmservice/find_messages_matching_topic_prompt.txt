@@ -1,28 +1,22 @@
 You are given the contents of discord messages in the following format:
-{id1}:
+message {id1}:
 ---
 {contents1}
 ---
 
-{id2}:
+message {id2}:
 ---
 {contents2}
 ---
 
-Your task is to select all the messages (via their id) which match any of the following conversation topics:
+etc...
+
+Your task is to select only those messages (via their id) which match at least one of the following conversation topics:
 %s
 
-When choosing messages matching the topic, only choose them if they clearly match it. If a message is ambiguous, do not include it.
+When choosing messages matching the topics, only choose them if they clearly match it. 
+If a message doesn't match a topic with high confidence, don't include it in the result.
 The result of this function will be used to alert moderators of the discord server about a message with their topic in mind.
 It would be useless if the alert is too noisy and gives too many false positives.
 
-However, if the messages don't match any of the given topics, still invoke the passed function with an empty list.
-
-Here's some information about our product just for your info in case it helps:
- * We are Encore, a devops platform that helps developers deploy their applications to the cloud with ease
- * We have a CLI tool which allows you to develop Golang and Typescript applications and deploy them to AWS, Azure, and GCP or our own cloud
- * We support multiple environments, such as staging, production, etc.
- * We have a web interface that allows you to manage your applications and environments
- * Some of the features we provide are auto-scaling, monitoring, logging, tracing
- * We support easily provisioning REST APIs, CRON Jobs, PubSub publishers & subscribers
-
+If the messages don't match any of the given topics, still invoke the passed function with an empty list.
