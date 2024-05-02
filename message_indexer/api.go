@@ -8,22 +8,29 @@ import (
 	"encore.app/models"
 )
 
+type SearchMessagesRequest struct {
+	Start      time.Time `query:"start"`
+	End        time.Time `query:"end"`
+	SearchTerm string    `query:"search_term"`
+}
+
 type SearchMessagesResponse struct {
 	Messages []*models.DiscordRawMessage `json:"messages"`
 }
 
 // SearchMessages searches for messages in the database.
 //
-//encore:api private method=GET path=/search-messages/*searchTerm
-func SearchMessages(ctx context.Context, searchTerm string) (*SearchMessagesResponse, error) {
+//encore:api private method=GET path=/search-messages
+func SearchMessages(ctx context.Context, req *SearchMessagesRequest) (*SearchMessagesResponse, error) {
 	rows, err := db.Query(ctx, `
 		SELECT 
 			dm.id, dm.interaction_type, dm.channel_id, dm.guild_id, 
 			dm.author_id, dm.content, dm.clean_content
 		FROM discord_messages_search dms 
 		JOIN discord_messages dm ON dms.id = dm.id
-		WHERE $1 % ANY(STRING_TO_ARRAY(dms.content_normalized, ' '))
-	`, searchTerm)
+		WHERE dm.created_at BETWEEN $1 AND $2 
+		  AND $3 % ANY(STRING_TO_ARRAY(dms.content_normalized, ' '))
+	`, req.Start, req.End, req.SearchTerm)
 	if err != nil {
 		return nil, err
 	}

@@ -40,7 +40,7 @@ func MapConversationAlertsFromSQLRows(rows *sqldb.Rows) ([]*ConversationAlert, e
 	for rows.Next() {
 		var cv ConversationAlert
 		err := rows.Scan(
-			&cv.ID, &cv.Topics, &cv.Keywords, &cv.ChannelID)
+			&cv.ID, &cv.Keywords, &cv.Topics, &cv.ChannelID)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't scan message: %w", err)
 		}

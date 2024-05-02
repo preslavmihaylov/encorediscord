@@ -41,7 +41,7 @@ func CheckConversationAlerts(ctx context.Context) error {
 
 func (s *Service) checkConversationAlerts(ctx context.Context) error {
 	now := time.Now()
-	rows, err := db.Query(ctx, "SELECT id, topics, keywords, channel_id FROM conversation_alerts")
+	rows, err := db.Query(ctx, "SELECT id, keywords, topics, channel_id FROM conversation_alerts")
 	if err != nil {
 		return fmt.Errorf("couldn't get conversation alerts: %w", err)
 	}
@@ -55,6 +55,11 @@ func (s *Service) checkConversationAlerts(ctx context.Context) error {
 		matchingMessages, err := s.findMessagesMatchingTopic(ctx, alert, now)
 		if err != nil {
 			return fmt.Errorf("couldn't find messages matching topic: %w", err)
+		}
+
+		if len(matchingMessages) == 0 {
+			rlog.Info("No messages found matching topics", "topics", alert.Topics)
+			continue
 		}
 
 		discordMsgsStr := []string{}
@@ -82,7 +87,43 @@ func (s *Service) checkConversationAlerts(ctx context.Context) error {
 		}
 	}
 
-	// TODO: alert for keywords
+	for _, alert := range conversationAlerts {
+		for _, keyword := range alert.Keywords {
+			resp, err := messageindexer.SearchMessages(ctx, &messageindexer.SearchMessagesRequest{
+				Start:      now.Add(-cronTimeDuration).UTC(),
+				End:        now.UTC(),
+				SearchTerm: keyword,
+			})
+			if err != nil {
+				return fmt.Errorf("couldn't find messages matching topic: %w", err)
+			}
+
+			discordMsgsStr := []string{}
+			matchingMessages := resp.Messages
+			for _, message := range matchingMessages {
+				discordMsg, err := s.discordClient.ChannelMessage(message.ChannelID, message.ID)
+				if err != nil {
+					return fmt.Errorf("couldn't get discord message: %w", err)
+				}
+
+				discordChannel, err := s.discordClient.Channel(message.ChannelID)
+				if err != nil {
+					return fmt.Errorf("couldn't get discord channel: %w", err)
+				}
+
+				discordMsgsStr = append(discordMsgsStr,
+					fmt.Sprintf("[Link](https://discord.com/channels/%s/%s/%s)",
+						discordChannel.GuildID, discordMsg.ChannelID, discordMsg.ID))
+			}
+
+			alertMsg := fmt.Sprintf("🔔 New messages matching keyword \"%s\" found:\n%s",
+				keyword, strings.Join(discordMsgsStr, "\n"))
+			_, err = s.discordClient.ChannelMessageSend(conversationAlertsChannelID, alertMsg)
+			if err != nil {
+				return fmt.Errorf("couldn't send discord message: %w", err)
+			}
+		}
+	}
 
 	return nil
 }
