@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"encore.app/discord_handler"
+	forumpostmapper "encore.app/forum_post_mapper"
 	"encore.app/models"
 	"encore.app/packages/llmservice"
 	"encore.dev/pubsub"
@@ -41,25 +41,25 @@ func initService() (*Service, error) {
 }
 
 var _ = pubsub.NewSubscription(
-	discord_handler.DiscordRawMessageTopic,
+	forumpostmapper.DiscordForumPostTopic,
 	"forum-post-tagger",
-	pubsub.SubscriptionConfig[*models.DiscordRawMessage]{
+	pubsub.SubscriptionConfig[*models.DiscordForumPostEvent]{
 		RetryPolicy: &pubsub.RetryPolicy{
 			MaxRetries: 5,
 		},
-		Handler: func(ctx context.Context, message *models.DiscordRawMessage) error {
-			rlog.Info("Received raw discord message", "discordMessage", message)
+		Handler: func(ctx context.Context, forumPost *models.DiscordForumPostEvent) error {
+			rlog.Info("Received raw discord message", "discordMessage", forumPost)
 			service, err := initService()
 			if err != nil {
 				return fmt.Errorf("couldn't create service: %w", err)
 			}
 
-			return service.TriageDiscordMessage(ctx, message)
+			return service.TriageDiscordForumPost(ctx, forumPost)
 		},
 	})
 
-func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.DiscordRawMessage) error {
-	forumPostChannel, err := s.discordClient.Channel(message.ChannelID)
+func (s *Service) TriageDiscordForumPost(ctx context.Context, forumPostEvt *models.DiscordForumPostEvent) error {
+	forumPostChannel, err := s.discordClient.Channel(forumPostEvt.ID)
 	if err != nil {
 		return fmt.Errorf("couldn't get discord channel: %w", err)
 	}
@@ -69,16 +69,9 @@ func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.Disc
 		return fmt.Errorf("couldn't get discord channel: %w", err)
 	}
 
-	rlog.Info("channel ID",
-		"channelId", message.ChannelID,
-		"parentId", forumPostChannel.ParentID,
-		"forumChannelType", forumChannel.Type,
-		"forumPostChannel", forumPostChannel.Name)
-	if forumChannel.Type != discordgo.ChannelTypeGuildForum {
-		rlog.Warn("Ignoring message for non-forum channel", "channelName", forumPostChannel.Name)
-		return nil
-	}
-
+	rlog.Info("Handling discord forum post",
+		"forumPostChannelId", forumPostChannel.ID,
+		"forumId", forumChannel.ID)
 	if len(forumPostChannel.AppliedTags) > 0 {
 		rlog.Info("Not setting tags for forum post which already has ones")
 		return nil
@@ -90,7 +83,6 @@ func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.Disc
 	}
 
 	firstMessage := messages[len(messages)-1]
-
 	firstMsgCleanContent := firstMessage.ContentWithMentionsReplaced()
 	tagsStr := lo.Map(forumChannel.AvailableTags, func(tag discordgo.ForumTag, _ int) string {
 		return tag.Name

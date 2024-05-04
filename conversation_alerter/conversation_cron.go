@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	messageindexer "encore.app/message_indexer"
+	communitymessageindexer "encore.app/community_message_indexer"
 	"encore.app/models"
 	"encore.dev/cron"
 	"encore.dev/rlog"
@@ -89,7 +89,7 @@ func (s *Service) checkConversationAlerts(ctx context.Context) error {
 
 	for _, alert := range conversationAlerts {
 		for _, keyword := range alert.Keywords {
-			resp, err := messageindexer.SearchMessages(ctx, &messageindexer.SearchMessagesRequest{
+			resp, err := communitymessageindexer.SearchMessages(ctx, &communitymessageindexer.SearchMessagesRequest{
 				Start:      now.Add(-cronTimeDuration).UTC(),
 				End:        now.UTC(),
 				SearchTerm: keyword,
@@ -132,7 +132,7 @@ func (s *Service) findMessagesMatchingTopic(
 	ctx context.Context, alert *models.ConversationAlert, now time.Time,
 ) ([]*models.DiscordRawMessage, error) {
 	generalChannelID := "1086301297201909864"
-	resp, err := messageindexer.ListMessages(ctx, &messageindexer.ListMessagesRequest{
+	resp, err := communitymessageindexer.ListMessages(ctx, &communitymessageindexer.ListMessagesRequest{
 		ChannelID: generalChannelID,
 		Start:     now.Add(-cronTimeDuration).UTC(),
 		End:       now.UTC(),

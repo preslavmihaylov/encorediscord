@@ -1,4 +1,4 @@
-package messageindexer
+package communitymessageindexer
 
 import (
 	"context"

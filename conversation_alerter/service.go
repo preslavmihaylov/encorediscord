@@ -8,7 +8,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var db = sqldb.NewDatabase("conversation_alerts", sqldb.DatabaseConfig{
+var db = sqldb.NewDatabase("conversation_alerter", sqldb.DatabaseConfig{
 	Migrations: "./migrations",
 })
 

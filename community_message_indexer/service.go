@@ -1,32 +1,16 @@
-package messageindexer
+package communitymessageindexer
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"encore.app/discord_handler"
 	"encore.app/models"
-	"encore.dev/pubsub"
 	"encore.dev/rlog"
-	"encore.dev/storage/sqldb"
 	"github.com/bbalet/stopwords"
 )
 
-var db = sqldb.NewDatabase("discord_messages", sqldb.DatabaseConfig{
-	Migrations: "./migrations",
-})
-
-var _ = pubsub.NewSubscription(
-	discord_handler.DiscordRawMessageTopic,
-	"message-writer",
-	pubsub.SubscriptionConfig[*models.DiscordRawMessage]{
-		Handler: func(ctx context.Context, message *models.DiscordRawMessage) error {
-			return persistDiscordMessage(ctx, message)
-		},
-	})
-
-func persistDiscordMessage(ctx context.Context, message *models.DiscordRawMessage) error {
+func persistDiscordMessage(ctx context.Context, message *models.DiscordCommunityMessageEvent) error {
 	// open transaction
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -78,7 +62,6 @@ func normalizeText(text string) string {
 	s = strings.ReplaceAll(s, ">", "")
 	s = strings.ReplaceAll(s, "\"", "")
 	s = strings.ReplaceAll(s, "'", "")
-	// s = strings.ReplaceAll(s, " ", "")
 	s = stopwords.CleanString(s, "en", true)
 
 	return strings.ToLower(s)
