@@ -22,7 +22,8 @@ var secrets struct {
 }
 
 type Service struct {
-	client *openai.Chat
+	chatClient *openai.Chat
+	llmClient  *openai.LLM
 }
 
 //go:embed triage_message_func.json
@@ -41,12 +42,28 @@ var setMessageTitleFuncSchema string
 var findMessagesMatchingTopicPrompt string
 
 func NewService() (*Service, error) {
-	client, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
+	chatClient, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create openai client: %w", err)
+		return nil, fmt.Errorf("couldn't create openai chat client: %w", err)
 	}
 
-	return &Service{client: client}, nil
+	llmClient, err := openai.New(
+		openai.WithModel("text-embedding-3-large"),
+		openai.WithToken(secrets.OpenAIAPIKey))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create openai llm client: %w", err)
+	}
+
+	return &Service{chatClient: chatClient, llmClient: llmClient}, nil
+}
+
+func (s *Service) CreateEmbeddings(ctx context.Context, messages []string) ([][]float32, error) {
+	embeddings, err := s.llmClient.CreateEmbedding(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create embeddings: %w", err)
+	}
+
+	return embeddings, nil
 }
 
 func (s *Service) DetermineForumPostTags(
@@ -80,7 +97,7 @@ func (s *Service) DetermineForumPostTags(
 		},
 	}
 
-	completion, err := s.client.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: tagForumPostPrompt},
 		schema.HumanChatMessage{Content: "What follow is details of the forum post."},
 		schema.HumanChatMessage{Content: fmt.Sprintf("Title: %s", forumPostTitle)},
@@ -88,6 +105,9 @@ func (s *Service) DetermineForumPostTags(
 	}, llms.WithFunctions(llmFunctions))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't call openai: %w", err)
+	} else if completion.FunctionCall == nil {
+		rlog.Warn("No function call found in completion")
+		return []string{}, nil
 	}
 
 	var result struct {
@@ -109,7 +129,7 @@ func (s *Service) TriageMessageTopic(ctx context.Context, messageContents string
 		},
 	}
 
-	completion, err := s.client.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: triageMessagePrompt},
 		schema.HumanChatMessage{Content: "Here's the message: " + messageContents},
 	}, llms.WithFunctions(llmFunctions))
@@ -138,7 +158,7 @@ func (s *Service) SuggestTitleForMessage(ctx context.Context, messageContents st
 		},
 	}
 
-	completion, err := s.client.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{
 			Content: "This is a message by a user of our product and we want you to suggest a title for that message, as if it's a forum post, made by the same user"},
 		schema.HumanChatMessage{Content: messageContents},
@@ -191,8 +211,7 @@ func (s *Service) FindMessagesMatchingTopic(
 		return fmt.Sprintf("\nmessage %d:\n---\n%s\n---\n", i, message.CleanContent)
 	}), "")
 
-	rlog.Info("DEBUG1", "msgs", messagesInput, "prompt", findMessagesMatchingTopicPrompt, "topics", strings.Join(topics, ", "))
-	completion, err := s.client.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: fmt.Sprintf(findMessagesMatchingTopicPrompt, strings.Join(topics, ", "))},
 		schema.HumanChatMessage{Content: "Here's the messages you have to match:"},
 		schema.HumanChatMessage{Content: messagesInput},
@@ -205,7 +224,6 @@ func (s *Service) FindMessagesMatchingTopic(
 		MatchingMessages []int `json:"matchingMessages"`
 	}
 
-	rlog.Info("DEBUG", "funccall", completion.FunctionCall)
 	if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
 		return nil, fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
 	}

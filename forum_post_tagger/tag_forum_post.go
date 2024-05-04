@@ -2,6 +2,7 @@ package forumposttagger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	forumpostmapper "encore.app/forum_post_mapper"
@@ -80,6 +81,9 @@ func (s *Service) TriageDiscordForumPost(ctx context.Context, forumPostEvt *mode
 	messages, err := s.discordClient.ChannelMessages(forumPostChannel.ID, 100, "", "", "")
 	if err != nil {
 		return fmt.Errorf("couldn't get messages in forum post: %w", err)
+	} else if len(messages) == 0 {
+		rlog.Warn("No messages found in forum post")
+		return errors.New("no messages found in forum post, will attempt retry...")
 	}
 
 	firstMessage := messages[len(messages)-1]
@@ -96,8 +100,12 @@ func (s *Service) TriageDiscordForumPost(ctx context.Context, forumPostEvt *mode
 	tagsToApply := lo.Filter(forumChannel.AvailableTags, func(tag discordgo.ForumTag, i int) bool {
 		return lo.Contains(llmDerivedTags, tag.Name)
 	})
-	tagIdsToApply := lo.Map(tagsToApply, func(tag discordgo.ForumTag, i int) string {
+	tagIds := lo.Map(tagsToApply, func(tag discordgo.ForumTag, i int) string {
 		return tag.ID
+	})
+
+	tagIdsToApply := lo.Filter(tagIds, func(tag string, i int) bool {
+		return i < 5
 	})
 
 	_, err = s.discordClient.ChannelEdit(forumPostChannel.ID, &discordgo.ChannelEdit{
