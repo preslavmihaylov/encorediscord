@@ -14,8 +14,7 @@ import (
 )
 
 var secrets struct {
-	DiscordToken   string
-	PineconeApiKey string
+	DiscordToken string
 }
 
 // #support

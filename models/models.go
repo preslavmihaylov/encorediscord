@@ -41,3 +41,9 @@ type ConversationAlert struct {
 	Topics    []string `json:"topics"`
 	ChannelID string   `json:"channel"`
 }
+
+type KnowledgeBaseArticle struct {
+	ID   string `json:"id"`
+	URL  string `json:"url"`
+	Text string `json:"text"`
+}

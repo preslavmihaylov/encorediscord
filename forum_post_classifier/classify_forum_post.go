@@ -132,6 +132,7 @@ func (s *Service) ClassifyDiscordForumPost(ctx context.Context, forumPostEvt *mo
 	})
 
 	if len(highConfidenceMatches) == 0 {
+		rlog.Info("Unique forum post detected, adding to forum posts index & publishing event")
 		if err := s.upsertMessageAsVector(ctx, forumPostChannel.ID, embeddings[0], map[string]*structpb.Value{}); err != nil {
 			return fmt.Errorf("couldn't upsert message as vector: %w", err)
 		}
@@ -144,6 +145,7 @@ func (s *Service) ClassifyDiscordForumPost(ctx context.Context, forumPostEvt *mo
 			return fmt.Errorf("couldn't publish unique forum post: %w", err)
 		}
 	} else {
+		rlog.Info("Duplicate forum post detected, publishing event")
 		_, err = DuplicateDiscordForumPostTopic.Publish(ctx, &models.DuplicateDiscordForumPostEvent{
 			ID: forumPostChannel.ID,
 			DuplicateDiscordForumPostIDs: lo.Map(highConfidenceMatches, func(match *pinecone.ScoredVector, _ int) string {

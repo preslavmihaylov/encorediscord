@@ -105,6 +105,14 @@ func (s *Service) TriageDiscordForumPost(ctx context.Context, forumPostEvt *mode
 	tagsToApply := lo.Filter(forumChannel.AvailableTags, func(tag discordgo.ForumTag, i int) bool {
 		return lo.Contains(llmDerivedTags, tag.Name)
 	})
+
+	if len(tagsToApply) > 1 {
+		// Remove auto-generated "Other" tag if at least one other tag is present
+		tagsToApply = lo.Filter(tagsToApply, func(tag discordgo.ForumTag, i int) bool {
+			return tag.Name != "Other"
+		})
+	}
+
 	tagIds := lo.Map(tagsToApply, func(tag discordgo.ForumTag, i int) string {
 		return tag.ID
 	})

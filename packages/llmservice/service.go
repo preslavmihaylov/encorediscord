@@ -22,8 +22,9 @@ var secrets struct {
 }
 
 type Service struct {
-	chatClient *openai.Chat
-	llmClient  *openai.LLM
+	chatGpt35Client *openai.Chat
+	chatGpt4Client  *openai.Chat
+	llmClient       *openai.LLM
 }
 
 //go:embed triage_message_func.json
@@ -41,8 +42,16 @@ var setMessageTitleFuncSchema string
 //go:embed find_messages_matching_topic_prompt.txt
 var findMessagesMatchingTopicPrompt string
 
+//go:embed answer_forum_post_prompt.txt
+var answerForumPostPrompt string
+
 func NewService() (*Service, error) {
-	chatClient, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
+	chatGpt35Client, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create openai chat client: %w", err)
+	}
+
+	chatGpt4Client, err := openai.NewChat(openai.WithModel("gpt-4-turbo-2024-04-09"), openai.WithToken(secrets.OpenAIAPIKey))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create openai chat client: %w", err)
 	}
@@ -54,7 +63,11 @@ func NewService() (*Service, error) {
 		return nil, fmt.Errorf("couldn't create openai llm client: %w", err)
 	}
 
-	return &Service{chatClient: chatClient, llmClient: llmClient}, nil
+	return &Service{
+		chatGpt35Client: chatGpt35Client,
+		chatGpt4Client:  chatGpt4Client,
+		llmClient:       llmClient,
+	}, nil
 }
 
 func (s *Service) CreateEmbeddings(ctx context.Context, messages []string) ([][]float32, error) {
@@ -97,7 +110,7 @@ func (s *Service) DetermineForumPostTags(
 		},
 	}
 
-	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: tagForumPostPrompt},
 		schema.HumanChatMessage{Content: "What follow is details of the forum post."},
 		schema.HumanChatMessage{Content: fmt.Sprintf("Title: %s", forumPostTitle)},
@@ -129,7 +142,7 @@ func (s *Service) TriageMessageTopic(ctx context.Context, messageContents string
 		},
 	}
 
-	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: triageMessagePrompt},
 		schema.HumanChatMessage{Content: "Here's the message: " + messageContents},
 	}, llms.WithFunctions(llmFunctions))
@@ -158,7 +171,7 @@ func (s *Service) SuggestTitleForMessage(ctx context.Context, messageContents st
 		},
 	}
 
-	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{
 			Content: "This is a message by a user of our product and we want you to suggest a title for that message, as if it's a forum post, made by the same user"},
 		schema.HumanChatMessage{Content: messageContents},
@@ -211,7 +224,7 @@ func (s *Service) FindMessagesMatchingTopic(
 		return fmt.Sprintf("\nmessage %d:\n---\n%s\n---\n", i, message.CleanContent)
 	}), "")
 
-	completion, err := s.chatClient.Call(ctx, []schema.ChatMessage{
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{Content: fmt.Sprintf(findMessagesMatchingTopicPrompt, strings.Join(topics, ", "))},
 		schema.HumanChatMessage{Content: "Here's the messages you have to match:"},
 		schema.HumanChatMessage{Content: messagesInput},
@@ -235,4 +248,54 @@ func (s *Service) FindMessagesMatchingTopic(
 
 		return messages[id]
 	}), nil
+}
+
+func (s *Service) AnswerForumPost(
+	ctx context.Context,
+	forumPostContents string,
+	knowledgeBase []*models.KnowledgeBaseArticle,
+) (string, error) {
+	// var llmFunctions = []llms.FunctionDefinition{
+	// 	{
+	// 		Name:        "provideAnswer",
+	// 		Description: "Sets the answer provided to the user",
+	// 		Parameters: json.RawMessage(fmt.Sprintf(`
+	// 			{
+	// 			  "type": "object",
+	// 			  "properties": {
+	// 				"yourAnswerOrSolution": {
+	// 				  "type": "string"
+	// 				}
+	// 			  },
+	// 			  "required": ["yourAnswerOrSolution"]
+	// 			}
+	// 		`)),
+	// 	},
+	// }
+
+	knowledgeBaseInput := strings.Join(lo.Map(knowledgeBase, func(article *models.KnowledgeBaseArticle, i int) string {
+		return fmt.Sprintf("\nArticle %d:\n---\n%s\n---\n\n", i, article.Text)
+	}), "\n")
+
+	prompt := fmt.Sprintf(answerForumPostPrompt, knowledgeBaseInput, forumPostContents)
+	completion, err := s.chatGpt4Client.Call(ctx, []schema.ChatMessage{
+		schema.HumanChatMessage{Content: prompt},
+	})
+	if err != nil {
+		return "", fmt.Errorf("couldn't call openai: %w", err)
+	}
+	// } else if completion.FunctionCall == nil {
+	// 	return "", errors.New("No function call found in completion")
+	// }
+
+	// var result struct {
+	// 	YourAnswerOrSolution string `json:"answer"`
+	// }
+
+	// if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
+	// 	return "", fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
+	// }
+
+	return completion.Content, nil
+	// return result.YourAnswerOrSolution, nil
 }
