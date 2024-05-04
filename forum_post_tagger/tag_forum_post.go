@@ -97,6 +97,11 @@ func (s *Service) TriageDiscordForumPost(ctx context.Context, forumPostEvt *mode
 		return fmt.Errorf("couldn't determine forum post tags: %w", err)
 	}
 
+	// always apply the "Other" if nothing matches
+	if len(llmDerivedTags) == 0 {
+		llmDerivedTags = append(llmDerivedTags, "Other")
+	}
+
 	tagsToApply := lo.Filter(forumChannel.AvailableTags, func(tag discordgo.ForumTag, i int) bool {
 		return lo.Contains(llmDerivedTags, tag.Name)
 	})

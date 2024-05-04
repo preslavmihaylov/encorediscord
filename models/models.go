@@ -19,6 +19,12 @@ type DiscordForumPostEvent struct {
 	GuildID string `json:"guildId"`
 }
 
+type DuplicateDiscordForumPostEvent struct {
+	ID                           string   `json:"id"`
+	DuplicateDiscordForumPostIDs []string `json:"duplicateDiscordForumPostIds"`
+	GuildID                      string   `json:"guildId"`
+}
+
 type DiscordCommunityMessageEvent struct {
 	ID              string                    `json:"id"`
 	InteractionType discordgo.InteractionType `json:"type"`
