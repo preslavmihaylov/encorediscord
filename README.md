@@ -17,7 +17,7 @@ Here's the main features it supports:
 ![application architecture](encore-flow.png)
 
 # Technologies
-To make this work, I'm using Encore as the framework for developing and deploying the Go application. 
+To make this work, I'm using Encore as the framework for developing and deploying the Go application. I'm heavily leveraging Encore's ability to manage cron jobs, different databases per service, inter-service RPCs, pubsub events.
 
 There's also a very thin JavaScript application deployed on Render, which proxies all discord webhooks to the Encore application. 
 This is a workaround due to an issue I stumbled upon with Discord's Go SDK which couldn't properly verify discord requests and hence, process any webhooks.
