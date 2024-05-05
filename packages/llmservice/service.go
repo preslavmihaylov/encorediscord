@@ -173,7 +173,13 @@ func (s *Service) SuggestTitleForMessage(ctx context.Context, messageContents st
 
 	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
 		schema.HumanChatMessage{
-			Content: "This is a message by a user of our product and we want you to suggest a title for that message, as if it's a forum post, made by the same user"},
+			Content: `
+			This is a message by a user of our product and we want you to suggest a title for that message, 
+			as if it's a forum post, made by the same user. 
+			The title should sound like a question from the user and shouldn't have exclamations or 
+			be too long or sound like a tutorial name.
+			Treat it as the title of a support request towards a customer support agent.
+			`},
 		schema.HumanChatMessage{Content: messageContents},
 	}, llms.WithFunctions(llmFunctions))
 	if err != nil {

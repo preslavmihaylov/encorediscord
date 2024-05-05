@@ -13,6 +13,7 @@ import (
 	"encore.app/packages/llmservice"
 	"encore.dev/pubsub"
 	"encore.dev/rlog"
+	"github.com/Kunde21/markdownfmt/v3"
 	"github.com/bwmarrin/discordgo"
 	"github.com/samber/lo"
 )
@@ -116,18 +117,35 @@ func (s *Service) HandleDiscordForumPost(ctx context.Context, forumPostEvt *mode
 		return nil
 	}
 
-	aiAssistantAnswer, err := s.llmService.AnswerForumPost(ctx, userForumPostContents, matchedArticles)
+	aiAssistantAnswerUnformatted, err := s.llmService.AnswerForumPost(ctx, userForumPostContents, matchedArticles)
 	if err != nil {
 		return fmt.Errorf("couldn't answer forum post: %w", err)
-	} else if aiAssistantAnswer == "" {
+	} else if aiAssistantAnswerUnformatted == "" {
 		rlog.Warn("AI didn't provide an answer for the forum post")
 		return nil
 	}
 
-	_, err = s.discordClient.ChannelMessageSend(
-		forumPostChannel.ID, attachSourcesToAIAssistantAnswer(aiAssistantAnswer, matchedArticles))
+	builder := new(strings.Builder)
+	err = markdownfmt.NewGoldmark().Convert([]byte(aiAssistantAnswerUnformatted), builder)
 	if err != nil {
-		return fmt.Errorf("couldn't send message to discord channel: %w", err)
+		return fmt.Errorf("couldn't format markdown: %w", err)
+	}
+
+	answerWithSources := attachSourcesToAIAssistantAnswer(builder.String(), matchedArticles)
+	messageParts := []string{}
+	if len(answerWithSources) > 2000 {
+		messageParts = append(messageParts, answerWithSources[:2000])
+		messageParts = append(messageParts, answerWithSources[2000:])
+	} else {
+		messageParts = append(messageParts, answerWithSources)
+	}
+
+	for _, messagePart := range messageParts {
+		_, err = s.discordClient.ChannelMessageSend(
+			forumPostChannel.ID, messagePart)
+		if err != nil {
+			return fmt.Errorf("couldn't send message to discord channel: %w", err)
+		}
 	}
 
 	rlog.Info("Sent AI assistant answer to discord channel")

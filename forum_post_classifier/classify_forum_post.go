@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	forumpostmapper "encore.app/forum_post_mapper"
 	"encore.app/models"
 	"encore.app/packages/llmservice"
@@ -12,7 +14,6 @@ import (
 	"encore.dev/pubsub"
 	"encore.dev/rlog"
 	"github.com/bwmarrin/discordgo"
-	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/pinecone-io/go-pinecone/pinecone"
 	"github.com/samber/lo"
 )
@@ -129,12 +130,14 @@ func (s *Service) ClassifyDiscordForumPost(ctx context.Context, forumPostEvt *mo
 	}
 
 	highConfidenceMatches := lo.Filter(matches, func(match *pinecone.ScoredVector, _ int) bool {
-		return match.Score > 0.7
+		return match.Score > 0.85
 	})
 
 	if len(highConfidenceMatches) == 0 {
 		rlog.Info("Unique forum post detected, adding to forum posts index & publishing event")
-		if err := s.upsertMessageAsVector(ctx, forumPostChannel.ID, embeddings[0], map[string]*structpb.Value{}); err != nil {
+		if err := s.upsertMessageAsVector(ctx, forumPostChannel.ID, embeddings[0], map[string]*structpb.Value{
+			"forum_channel_id": structpb.NewStringValue(forumPostChannel.ID),
+		}); err != nil {
 			return fmt.Errorf("couldn't upsert message as vector: %w", err)
 		}
 
@@ -146,7 +149,7 @@ func (s *Service) ClassifyDiscordForumPost(ctx context.Context, forumPostEvt *mo
 			return fmt.Errorf("couldn't publish unique forum post: %w", err)
 		}
 	} else {
-		rlog.Info("Duplicate forum post detected, publishing event")
+		rlog.Info("Duplicate forum post detected, publishing event", "highConfidenceMatches", highConfidenceMatches)
 		_, err = DuplicateDiscordForumPostTopic.Publish(ctx, &models.DuplicateDiscordForumPostEvent{
 			ID: forumPostChannel.ID,
 			DuplicateDiscordForumPostIDs: lo.Map(highConfidenceMatches, func(match *pinecone.ScoredVector, _ int) string {
