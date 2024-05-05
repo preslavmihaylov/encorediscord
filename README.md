@@ -14,7 +14,7 @@ Here's the main features it supports:
  * You can configure conversation alerts - an automated alert in a moderator-only channel when a given topic or keyword is mentioned in the community channel.
 
 ## Application Architecture
-[application architecture](encore-flow.png)
+![application architecture](encore-flow.png)
 
 ## Technologies
 To make this work, I'm using Encore as the framework for developing and deploying the Go application. 
