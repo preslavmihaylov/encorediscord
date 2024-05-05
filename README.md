@@ -13,10 +13,10 @@ Here's the main features it supports:
  * For the unique forum posts, an AI agent answers the question by the community member using Encore's documentation as knowledge base.
  * You can configure conversation alerts - an automated alert in a moderator-only channel when a given topic or keyword is mentioned in the community channel.
 
-## Application Architecture
+# Application Architecture
 ![application architecture](encore-flow.png)
 
-## Technologies
+# Technologies
 To make this work, I'm using Encore as the framework for developing and deploying the Go application. 
 
 There's also a very thin JavaScript application deployed on Render, which proxies all discord webhooks to the Encore application. 
