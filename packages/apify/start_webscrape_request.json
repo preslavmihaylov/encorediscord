@@ -1,0 +1,41 @@
+{
+  "startUrls": [
+    {
+      "url": "%s"
+    }
+  ],
+  "useSitemaps": false,
+  "crawlerType": "playwright:adaptive",
+  "includeUrlGlobs": [],
+  "excludeUrlGlobs": [],
+  "ignoreCanonicalUrl": false,
+  "maxCrawlDepth": 20,
+  "maxCrawlPages": 9999999,
+  "initialConcurrency": 0,
+  "maxConcurrency": 200,
+  "initialCookies": [],
+  "proxyConfiguration": {
+    "useApifyProxy": true
+  },
+  "maxSessionRotations": 10,
+  "maxRequestRetries": 5,
+  "requestTimeoutSecs": 60,
+  "minFileDownloadSpeedKBps": 128,
+  "dynamicContentWaitSecs": 10,
+  "maxScrollHeightPixels": 5000,
+  "removeElementsCssSelector": "nav, footer, script, style, noscript, svg,\n[role=\"alert\"],\n[role=\"banner\"],\n[role=\"dialog\"],\n[role=\"alertdialog\"],\n[role=\"region\"][aria-label*=\"skip\" i],\n[aria-modal=\"true\"]",
+  "removeCookieWarnings": true,
+  "clickElementsCssSelector": "[aria-expanded=\"false\"]",
+  "htmlTransformer": "readableText",
+  "readableTextCharThreshold": 100,
+  "aggressivePrune": false,
+  "debugMode": false,
+  "debugLog": false,
+  "saveHtml": false,
+  "saveMarkdown": true,
+  "saveFiles": false,
+  "saveScreenshots": false,
+  "maxResults": 9999999,
+  "clientSideMinChangePercentage": 15,
+  "renderingTypeDetectionPercentage": 10
+}

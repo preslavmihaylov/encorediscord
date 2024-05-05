@@ -50,3 +50,18 @@ func MapConversationAlertsFromSQLRows(rows *sqldb.Rows) ([]*ConversationAlert, e
 
 	return cvs, nil
 }
+
+func MapWebScrapeJobsFromSQLRows(rows *sqldb.Rows) ([]*WebScrapeJob, error) {
+	var wsjs []*WebScrapeJob
+	for rows.Next() {
+		var wsj WebScrapeJob
+		err := rows.Scan(&wsj.ID, &wsj.ResultID, &wsj.Status)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't scan message: %w", err)
+		}
+
+		wsjs = append(wsjs, &wsj)
+	}
+
+	return wsjs, nil
+}

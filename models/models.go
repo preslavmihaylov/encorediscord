@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encore.app/packages/apify"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -43,7 +44,14 @@ type ConversationAlert struct {
 }
 
 type KnowledgeBaseArticle struct {
-	ID   string `json:"id"`
-	URL  string `json:"url"`
-	Text string `json:"text"`
+	ID    string `json:"id"`
+	URL   string `json:"url"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
+}
+
+type WebScrapeJob struct {
+	ID       string                `json:"id"`
+	ResultID string                `json:"resultId"`
+	Status   apify.WebScrapeStatus `json:"status"`
 }

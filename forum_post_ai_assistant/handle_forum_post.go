@@ -8,19 +8,17 @@ import (
 	"time"
 
 	forumpostclassifier "encore.app/forum_post_classifier"
+	knowledgebase "encore.app/knowledge_base"
 	"encore.app/models"
 	"encore.app/packages/llmservice"
-	"encore.app/packages/utils"
 	"encore.dev/pubsub"
 	"encore.dev/rlog"
 	"github.com/bwmarrin/discordgo"
-	"github.com/pinecone-io/go-pinecone/pinecone"
 	"github.com/samber/lo"
 )
 
 var secrets struct {
-	DiscordToken   string
-	PineconeApiKey string
+	DiscordToken string
 }
 
 // #support
@@ -30,10 +28,8 @@ const indexName = "knowledge-base-index"
 // Service for sending automated messages for forum posts
 // based on a knowledge base we've built
 type Service struct {
-	llmService        *llmservice.Service
-	discordClient     *discordgo.Session
-	pineconeClient    *pinecone.Client
-	pineconeIndexConn *pinecone.IndexConnection
+	llmService    *llmservice.Service
+	discordClient *discordgo.Session
 }
 
 func initService() (*Service, error) {
@@ -47,23 +43,9 @@ func initService() (*Service, error) {
 		return nil, fmt.Errorf("couldn't create discord client: %w", err)
 	}
 
-	pineconeClient, err := pinecone.NewClient(pinecone.NewClientParams{
-		ApiKey: secrets.PineconeApiKey,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create pinecone client: %w", err)
-	}
-
-	pineconeIndexConn, err := utils.ConnectToVectorDBIndex(context.Background(), pineconeClient, indexName)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't connect to pinecone index: %w", err)
-	}
-
 	return &Service{
-		llmService:        llmService,
-		discordClient:     discordClient,
-		pineconeClient:    pineconeClient,
-		pineconeIndexConn: pineconeIndexConn,
+		llmService:    llmService,
+		discordClient: discordClient,
 	}, nil
 }
 
@@ -122,33 +104,17 @@ func (s *Service) HandleDiscordForumPost(ctx context.Context, forumPostEvt *mode
 	firstMessage := messages[len(messages)-1]
 	firstMsgCleanContent := firstMessage.ContentWithMentionsReplaced()
 	userForumPostContents := formatMessageForAIAssistant(forumPostChannel.Name, firstMsgCleanContent)
-	matches, err := s.SearchForSimilarMessages(
-		ctx, userForumPostContents)
+
+	resp, err := knowledgebase.FindRelevantKnowledgeBaseArticles(ctx, userForumPostContents)
 	if err != nil {
-		return fmt.Errorf("couldn't search for similar messages: %w", err)
+		return fmt.Errorf("couldn't find relevant knowledge base articles: %w", err)
 	}
 
-	highConfidenceMatches := lo.Filter(matches, func(match *pinecone.ScoredVector, _ int) bool {
-		return match.Score > 0.3
-	})
-	if len(highConfidenceMatches) == 0 {
-		rlog.Warn("No high confidence knowledge base articles found for forum post")
+	matchedArticles := resp.Articles
+	if len(matchedArticles) == 0 {
+		rlog.Warn("No matching knowledge base articles found for forum post")
 		return nil
 	}
-
-	topMatches := lo.Filter(matches, func(match *pinecone.ScoredVector, i int) bool {
-		return i < 3
-	})
-
-	matchedArticles := lo.Map(topMatches,
-		func(match *pinecone.ScoredVector, _ int) *models.KnowledgeBaseArticle {
-			metadata := match.Vector.Metadata.AsMap()
-			return &models.KnowledgeBaseArticle{
-				ID:   match.Vector.Id,
-				Text: metadata["text"].(string),
-				URL:  metadata["url"].(string),
-			}
-		})
 
 	aiAssistantAnswer, err := s.llmService.AnswerForumPost(ctx, userForumPostContents, matchedArticles)
 	if err != nil {
@@ -166,26 +132,6 @@ func (s *Service) HandleDiscordForumPost(ctx context.Context, forumPostEvt *mode
 
 	rlog.Info("Sent AI assistant answer to discord channel")
 	return nil
-}
-
-func (s *Service) SearchForSimilarMessages(ctx context.Context, msg string) ([]*pinecone.ScoredVector, error) {
-	embeddings, err := s.llmService.CreateEmbeddings(ctx, []string{msg})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create embeddings: %w", err)
-	}
-
-	msgEmbedding := embeddings[0]
-	resp, err := s.pineconeIndexConn.QueryByVectorValues(&ctx, &pinecone.QueryByVectorValuesRequest{
-		Vector:          msgEmbedding,
-		TopK:            3,
-		IncludeValues:   false,
-		IncludeMetadata: true,
-	})
-	if err != nil {
-		panic("Error querying vectors: " + err.Error())
-	}
-
-	return resp.Matches, nil
 }
 
 func attachSourcesToAIAssistantAnswer(aiAssistantAnswer string, sources []*models.KnowledgeBaseArticle) string {

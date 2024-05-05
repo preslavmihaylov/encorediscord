@@ -8,6 +8,7 @@ import (
 	forumpostmapper "encore.app/forum_post_mapper"
 	"encore.app/models"
 	"encore.app/packages/llmservice"
+	"encore.app/packages/utils"
 	"encore.dev/pubsub"
 	"encore.dev/rlog"
 	"github.com/bwmarrin/discordgo"
@@ -21,7 +22,7 @@ var secrets struct {
 	PineconeApiKey string
 }
 
-const indexName = "encorediscord-uniq-forum-posts"
+const uniqForumPostsIndexName = "encorediscord-uniq-forum-posts"
 
 // Service for classifying forum posts as duplicate or unique
 type Service struct {
@@ -49,7 +50,7 @@ func initService() (*Service, error) {
 		return nil, fmt.Errorf("couldn't create pinecone client: %w", err)
 	}
 
-	pineconeIndexConn, err := connectToVectorDBIndex(context.Background(), pineconeClient)
+	pineconeIndexConn, err := utils.ConnectToVectorDBIndex(context.Background(), pineconeClient, uniqForumPostsIndexName)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect to pinecone index: %w", err)
 	}
@@ -195,47 +196,4 @@ func (s *Service) upsertMessageAsVector(
 
 func formatMessageForClassification(title, message string) string {
 	return fmt.Sprintf("Title: %s\n\nContents:\n%s", title, message)
-}
-
-func connectToVectorDBIndex(ctx context.Context, pineconeClient *pinecone.Client) (*pinecone.IndexConnection, error) {
-	index, err := createOrGetVectorDBIndex(ctx, pineconeClient)
-	if err != nil {
-		return nil, err
-	}
-
-	indexConn, err := pineconeClient.Index(index.Host)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't connect to index: %w", err)
-	}
-
-	return indexConn, nil
-}
-
-func createOrGetVectorDBIndex(
-	ctx context.Context, pineconeClient *pinecone.Client,
-) (*pinecone.Index, error) {
-	indices, err := pineconeClient.ListIndexes(ctx)
-	if err != nil {
-		panic("Error listing indexes: " + err.Error())
-	}
-
-	for _, index := range indices {
-		if index.Name == indexName {
-			return index, nil
-		}
-	}
-
-	index, err := pineconeClient.CreateServerlessIndex(ctx, &pinecone.CreateServerlessIndexRequest{
-		Name:      indexName,
-		Dimension: 3072,
-		Metric:    "cosine",
-		Cloud:     "aws",
-		// this is the only region supported for the default tier
-		Region: "us-east-1",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create index: %w", err)
-	}
-
-	return index, nil
 }
