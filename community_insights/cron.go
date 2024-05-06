@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 
 	communitymessageindexer "encore.app/community_message_indexer"
 	"encore.dev/cron"
@@ -53,7 +54,7 @@ func (s *Service) fetchHourlyMessages(ctx context.Context) error {
 		return err
 	}
 
-	if err := s.addCountMessages(ctx, resp, start); err != nil {
+	if err := s.addMessageCount(ctx, resp, start); err != nil {
 		return err
 	}
 
@@ -62,6 +63,11 @@ func (s *Service) fetchHourlyMessages(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Service) addMessageCount(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
+	countAsJson := fmt.Sprintf(`{"count": %d}`, len(resp.Messages))
+	return addInsight(ctx, uuid.New().String(), "message_count", start, countAsJson)
 }
 
 func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
@@ -88,10 +94,5 @@ func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communityme
 		return err
 	}
 
-	return addInsight(ctx, uuid.New().String(), "messages_count_per_topic", string(messageCountPerTopicJson), start)
-}
-
-func (s *Service) addCountMessages(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
-	countAsJson := fmt.Sprintf(`{"count": %d}`, len(resp.Messages))
-	return addInsight(ctx, uuid.New().String(), "message_count", countAsJson, start)
+	return addInsight(ctx, uuid.New().String(), "messages_count_per_topic", start, string(messageCountPerTopicJson))
 }

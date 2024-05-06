@@ -2,10 +2,11 @@ package communityinsights
 
 import (
 	"context"
-	"encore.app/packages/llmservice"
-	"encore.dev/storage/sqldb"
 	"fmt"
 	"time"
+
+	"encore.app/packages/llmservice"
+	"encore.dev/storage/sqldb"
 )
 
 var db = sqldb.NewDatabase("community_insights", sqldb.DatabaseConfig{
@@ -25,7 +26,7 @@ func NewService() (*Service, error) {
 	return &Service{llmService: llmService}, nil
 }
 
-func addInsight(ctx context.Context, id, messageType, value string, bucketTimestamp time.Time) error {
+func addInsight(ctx context.Context, id, messageType string, bucketTimestamp time.Time, value string) error {
 	_, err := db.Exec(ctx,
 		`INSERT INTO community_insights (id, type, timestamp, value) 
          VALUES ($1, $2, $3, $4)
