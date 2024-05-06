@@ -56,6 +56,11 @@ var _ = pubsub.NewSubscription(
 	})
 
 func (s *Service) TriageDiscordMessage(ctx context.Context, message *models.DiscordCommunityMessageEvent) error {
+	if message.Content == "" {
+		rlog.Info("Ignoring empty message")
+		return nil
+	}
+
 	discordChannel, err := s.discordClient.Channel(message.ChannelID)
 	if err != nil {
 		return fmt.Errorf("couldn't get discord channel: %w", err)
