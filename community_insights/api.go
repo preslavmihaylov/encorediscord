@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"time"
+
+	"encore.app/models"
+	"encore.dev/rlog"
+	"github.com/samber/lo"
 )
 
-type MessageCountRequest struct {
+type MetricDurationRequest struct {
 	Hours uint `json:"hours"`
 }
 
@@ -31,8 +36,13 @@ type MessageCountPerTopicResponse struct {
 	TimeMessageCountPerTopic []TimeCountPerTopic `json:"timeMessageCountPerTopic"`
 }
 
+type UserSentimentResponse struct {
+	PositiveSentiments map[string]float32 `json:"positiveSentiments"`
+	NegativeSentiments map[string]float32 `json:"negativeSentiments"`
+}
+
 // encore:api public path=/get-message-counts
-func GetMessageCounts(ctx context.Context, req *MessageCountRequest) (*MessageCountResponse, error) {
+func (s *Service) GetMessageCounts(ctx context.Context, req *MetricDurationRequest) (*MessageCountResponse, error) {
 	if req.Hours > 24 {
 		return nil, errors.New("please provide a duration less than or equal to 24 hours")
 	}
@@ -88,7 +98,7 @@ func GetMessageCounts(ctx context.Context, req *MessageCountRequest) (*MessageCo
 }
 
 // encore:api public path=/get-message-counts-per-topic
-func GetMessageCountsPerTopic(ctx context.Context, req *MessageCountRequest) (*MessageCountPerTopicResponse, error) {
+func (s *Service) GetMessageCountsPerTopic(ctx context.Context, req *MetricDurationRequest) (*MessageCountPerTopicResponse, error) {
 	if req.Hours > 24 {
 		return nil, errors.New("please provide a duration less than or equal to 24 hours")
 	}
@@ -134,6 +144,82 @@ func GetMessageCountsPerTopic(ctx context.Context, req *MessageCountRequest) (*M
 
 	sortedResults := sortResults(results)
 	return &MessageCountPerTopicResponse{TimeMessageCountPerTopic: sortedResults}, nil
+}
+
+// encore:api public path=/get-user-sentiment
+func (s *Service) GetUserSentiment(ctx context.Context, req *MetricDurationRequest) (*UserSentimentResponse, error) {
+	if req.Hours > 24 {
+		return nil, errors.New("please provide a duration less than or equal to 24 hours")
+	}
+
+	endTime := time.Now().UTC().Truncate(time.Hour)
+	startTime := endTime.Add(time.Duration(-int(req.Hours)) * time.Hour)
+	query := `
+		SELECT date_trunc('hour', timestamp) AS hour, value
+		FROM community_insights
+		WHERE type = 'sentiment_per_user' AND timestamp BETWEEN $1 AND $2
+		ORDER BY hour
+	`
+
+	rows, err := db.Query(ctx, query, startTime, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %v", err)
+	}
+	defer rows.Close()
+
+	sentimentsPerUser := map[string][]float32{}
+	for rows.Next() {
+		var hour time.Time
+		var valueStr string
+		if err := rows.Scan(&hour, &valueStr); err != nil {
+			return nil, err
+		}
+
+		authorsToSentimentStats := make(map[string]*models.MessageSentimentStats)
+		if err := json.Unmarshal([]byte(valueStr), &authorsToSentimentStats); err != nil {
+			return nil, fmt.Errorf("unmarshal error: %v", err)
+		}
+
+		for author, stats := range authorsToSentimentStats {
+			if _, ok := sentimentsPerUser[author]; !ok {
+				sentimentsPerUser[author] = []float32{}
+			}
+
+			sentiment := (float32(stats.Positive)*1.0 + float32(stats.Negative)*(-1.0)) /
+				float32(stats.Positive+stats.Negative+stats.Neutral)
+			sentimentsPerUser[author] = append(sentimentsPerUser[author], sentiment)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %v", err)
+	}
+
+	positiveSentiments := map[string]float32{}
+	negativeSentiments := map[string]float32{}
+	for userID, sentiments := range sentimentsPerUser {
+		avgSentiment := lo.Sum(sentiments) / float32(len(sentiments))
+		if math.Abs(float64(avgSentiment)) < 0.2 {
+			rlog.Info("Skipping user with neutral sentiment", "user_id", userID)
+			continue
+		}
+
+		discordUser, err := s.discordClient.User(userID)
+		if err != nil {
+			return nil, fmt.Errorf("error while trying to get user: %w", err)
+		}
+
+		if avgSentiment > 0 {
+			positiveSentiments[discordUser.Username] = avgSentiment
+		} else {
+			negativeSentiments[discordUser.Username] = avgSentiment
+		}
+	}
+
+	return &UserSentimentResponse{
+		PositiveSentiments: positiveSentiments,
+		NegativeSentiments: negativeSentiments,
+	}, nil
 }
 
 func initializeTimeCountPerTopic(start, end time.Time) map[time.Time]TimeCountPerTopic {
