@@ -1,0 +1,9 @@
+You are given a message from a Discord channel and you have to evaluate the sentiment of the message.
+
+The sentiment can be one of the following:
+- Positive
+- Neutral
+- Negative
+
+Only evaluate a message as positive if it is clearly positive, otherwise, evaluate it as neutral. If the message is clearly negative, evaluate it as negative.
+

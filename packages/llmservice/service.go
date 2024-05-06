@@ -48,6 +48,9 @@ var answerForumPostPrompt string
 //go:embed match_message_to_topic_prompt.txt
 var matchMessageToTopicPrompt string
 
+//go:embed evaluate_message_sentiment_prompt.txt
+var evaluateMessageSentimentPrompt string
+
 func NewService() (*Service, error) {
 	chatGpt35Client, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
 	if err != nil {
@@ -264,24 +267,6 @@ func (s *Service) AnswerForumPost(
 	forumPostContents string,
 	knowledgeBase []*models.KnowledgeBaseArticle,
 ) (string, error) {
-	// var llmFunctions = []llms.FunctionDefinition{
-	// 	{
-	// 		Name:        "provideAnswer",
-	// 		Description: "Sets the answer provided to the user",
-	// 		Parameters: json.RawMessage(fmt.Sprintf(`
-	// 			{
-	// 			  "type": "object",
-	// 			  "properties": {
-	// 				"yourAnswerOrSolution": {
-	// 				  "type": "string"
-	// 				}
-	// 			  },
-	// 			  "required": ["yourAnswerOrSolution"]
-	// 			}
-	// 		`)),
-	// 	},
-	// }
-
 	knowledgeBaseInput := strings.Join(lo.Map(knowledgeBase, func(article *models.KnowledgeBaseArticle, i int) string {
 		return fmt.Sprintf("\nArticle %d:\n---\n%s\n---\n\n", i, article.Text)
 	}), "\n")
@@ -293,20 +278,8 @@ func (s *Service) AnswerForumPost(
 	if err != nil {
 		return "", fmt.Errorf("couldn't call openai: %w", err)
 	}
-	// } else if completion.FunctionCall == nil {
-	// 	return "", errors.New("No function call found in completion")
-	// }
-
-	// var result struct {
-	// 	YourAnswerOrSolution string `json:"answer"`
-	// }
-
-	// if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
-	// 	return "", fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
-	// }
 
 	return completion.Content, nil
-	// return result.YourAnswerOrSolution, nil
 }
 
 func (s *Service) MatchMessageToTopic(
@@ -350,4 +323,55 @@ func (s *Service) MatchMessageToTopic(
 	}
 
 	return result.MatchingTopic, nil
+}
+
+func (s *Service) EvaluateMessageSentiment(
+	ctx context.Context,
+	message *models.DiscordRawMessage,
+) (models.MessageSentiment, error) {
+	var llmFunctions = []llms.FunctionDefinition{
+		{
+			Name:        "setMessageSentiment",
+			Description: "Sets the sentiment of the given message",
+			Parameters: json.RawMessage(fmt.Sprintf(`
+				{
+				  "type": "object",
+				  "properties": {
+					"messageSentiment": {
+					    "type": "string"
+					}
+				  },
+				  "required": ["messageSentiment"]
+				}
+			`)),
+		},
+	}
+
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
+		schema.HumanChatMessage{Content: fmt.Sprintf(evaluateMessageSentimentPrompt)},
+		schema.HumanChatMessage{Content: "Here's the message you have to evaluate:"},
+		schema.HumanChatMessage{Content: message.CleanContent},
+	}, llms.WithFunctions(llmFunctions))
+	if err != nil {
+		return "", fmt.Errorf("couldn't call openai: %w", err)
+	}
+
+	var result struct {
+		MessageSentiment string `json:"messageSentiment"`
+	}
+
+	if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
+		return "", fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
+	}
+
+	switch strings.ToUpper(result.MessageSentiment) {
+	case "POSITIVE":
+		return models.MessageSentimentPositive, nil
+	case "NEUTRAL":
+		return models.MessageSentimentNeutral, nil
+	case "NEGATIVE":
+		return models.MessageSentimentNegative, nil
+	default:
+		return "", fmt.Errorf("ChatGPT generated an invalid message sentiment: %s", result.MessageSentiment)
+	}
 }

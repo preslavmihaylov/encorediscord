@@ -56,3 +56,11 @@ type WebScrapeJob struct {
 	ResultID string                `json:"resultId"`
 	Status   apify.WebScrapeStatus `json:"status"`
 }
+
+type MessageSentiment string
+
+const (
+	MessageSentimentPositive MessageSentiment = "POSITIVE"
+	MessageSentimentNeutral  MessageSentiment = "NEUTRAL"
+	MessageSentimentNegative MessageSentiment = "NEGATIVE"
+)
