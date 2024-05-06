@@ -65,13 +65,22 @@ func (s *Service) fetchHourlyMessages(ctx context.Context) error {
 }
 
 func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
+	topics := []string{"Question", "Feedback", "Bug Report", "Feature Request", "Other"}
 	topicMessageCount := make(map[string]int)
+
+	for _, topic := range topics {
+		topicMessageCount[topic] = 0
+	}
+
 	for _, msg := range resp.Messages {
-		topic, err := s.llmService.MatchMessageToTopic(ctx, msg, []string{"Question", "Feedback", "Bug Report", "Feature Request", "Other"})
+		topic, err := s.llmService.MatchMessageToTopic(ctx, msg, topics)
 		if err != nil {
 			continue
 		}
-		topicMessageCount[topic]++
+		topicCount, ok := topicMessageCount[topic]
+		if ok {
+			topicMessageCount[topic] = topicCount + 1
+		}
 	}
 
 	messageCountPerTopicJson, err := json.Marshal(topicMessageCount)

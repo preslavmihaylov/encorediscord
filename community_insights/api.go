@@ -96,6 +96,7 @@ func GetMessageCountsPerTopic(ctx context.Context, req *MessageCountRequest) (*M
 	endTime := time.Now().UTC().Truncate(time.Hour)
 	startTime := endTime.Add(time.Duration(-int(req.Hours)) * time.Hour)
 
+	results := initializeTimeCountPerTopic(startTime, endTime)
 	query := `
 		SELECT date_trunc('hour', timestamp) AS hour, value
 		FROM community_insights
@@ -109,7 +110,6 @@ func GetMessageCountsPerTopic(ctx context.Context, req *MessageCountRequest) (*M
 	}
 	defer rows.Close()
 
-	var results []TimeCountPerTopic
 	for rows.Next() {
 		var hour time.Time
 		var valueStr string
@@ -122,19 +122,43 @@ func GetMessageCountsPerTopic(ctx context.Context, req *MessageCountRequest) (*M
 			return nil, fmt.Errorf("unmarshal error: %v", err)
 		}
 
-		results = append(results, TimeCountPerTopic{
-			Timestamp:   hour,
+		results[hour] = TimeCountPerTopic{
 			TopicCounts: topicCounts,
-		})
+			Timestamp:   hour,
+		}
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Timestamp.Before(results[j].Timestamp)
-	})
+	sortedResults := sortResults(results)
+	return &MessageCountPerTopicResponse{TimeMessageCountPerTopic: sortedResults}, nil
+}
 
-	return &MessageCountPerTopicResponse{TimeMessageCountPerTopic: results}, nil
+func initializeTimeCountPerTopic(start, end time.Time) map[time.Time]TimeCountPerTopic {
+	results := make(map[time.Time]TimeCountPerTopic)
+	topics := []string{"Feature Request", "Feedback", "Other", "Question", "Bug Report"}
+	for t := start; !t.After(end); t = t.Add(time.Hour) {
+		topicCounts := make(map[string]int)
+		for _, topic := range topics {
+			topicCounts[topic] = 0
+		}
+		results[t] = TimeCountPerTopic{
+			Timestamp:   t,
+			TopicCounts: topicCounts,
+		}
+	}
+	return results
+}
+
+func sortResults(results map[time.Time]TimeCountPerTopic) []TimeCountPerTopic {
+	var sortedResults []TimeCountPerTopic
+	for _, result := range results {
+		sortedResults = append(sortedResults, result)
+	}
+	sort.Slice(sortedResults, func(i, j int) bool {
+		return sortedResults[i].Timestamp.Before(sortedResults[j].Timestamp)
+	})
+	return sortedResults
 }
