@@ -2,6 +2,7 @@ package communityinsights
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"time"
@@ -27,8 +28,17 @@ type FetchMessagesResponse struct {
 	Messages []MessageDetails `json:"messages"`
 }
 
-//encore:api private
-func FetchHourlyMessages(ctx context.Context) (*FetchMessagesResponse, error) {
+// encore:api private method=POST path=/fetch-hourly-messages
+func FetchHourlyMessages(ctx context.Context) error {
+	service, err := NewService()
+	if err != nil {
+		return fmt.Errorf("couldn't create service: %w", err)
+	}
+
+	return service.fetchHourlyMessages(ctx)
+}
+
+func (s *Service) fetchHourlyMessages(ctx context.Context) error {
 	now := time.Now().Truncate(time.Hour)
 	start := now
 	end := now.Add(time.Hour)
@@ -40,23 +50,39 @@ func FetchHourlyMessages(ctx context.Context) (*FetchMessagesResponse, error) {
 
 	resp, err := communitymessageindexer.ListMessages(ctx, req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	countAsJson := fmt.Sprintf(`{"count": %d}`, len(resp.Messages))
-	err = addInsight(ctx, uuid.New().String(), "message_count", countAsJson, start)
-	if err != nil {
-		return nil, err
+	if err := s.addCountMessages(ctx, resp, start); err != nil {
+		return err
 	}
 
-	var messages []MessageDetails
+	if err := s.addMessageCountPerTopic(ctx, resp, start); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
+	topicMessageCount := make(map[string]int)
 	for _, msg := range resp.Messages {
-		messages = append(messages, MessageDetails{
-			ID:       msg.ID,
-			Content:  msg.Content,
-			AuthorID: msg.AuthorID,
-		})
+		topic, err := s.llmService.MatchMessageToTopic(ctx, msg, []string{"Question", "Feedback", "Bug Report", "Feature Request", "Other"})
+		if err != nil {
+			continue
+		}
+		topicMessageCount[topic]++
 	}
 
-	return &FetchMessagesResponse{Messages: messages}, nil
+	messageCountPerTopicJson, err := json.Marshal(topicMessageCount)
+	if err != nil {
+		return err
+	}
+
+	return addInsight(ctx, uuid.New().String(), "messages_count_per_topic", string(messageCountPerTopicJson), start)
+}
+
+func (s *Service) addCountMessages(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
+	countAsJson := fmt.Sprintf(`{"count": %d}`, len(resp.Messages))
+	return addInsight(ctx, uuid.New().String(), "message_count", countAsJson, start)
 }

@@ -1,0 +1,9 @@
+You are given a message from a Discord channel and you have to classify to a given topic.
+
+The topics are given as a comma-separated list.
+
+These are the topics you are given:
+%s
+
+If no topic seems appropriate, choose the topic named "Other".
+Only match the message to a given topic if you are very confident that it is associated to it, otherwise, associate it with the topic named "Other".

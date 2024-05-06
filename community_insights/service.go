@@ -2,6 +2,7 @@ package communityinsights
 
 import (
 	"context"
+	"encore.app/packages/llmservice"
 	"encore.dev/storage/sqldb"
 	"fmt"
 	"time"
@@ -10,6 +11,19 @@ import (
 var db = sqldb.NewDatabase("community_insights", sqldb.DatabaseConfig{
 	Migrations: "./migrations",
 })
+
+type Service struct {
+	llmService *llmservice.Service
+}
+
+func NewService() (*Service, error) {
+	llmService, err := llmservice.NewService()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create llm service: %w", err)
+	}
+
+	return &Service{llmService: llmService}, nil
+}
 
 func addInsight(ctx context.Context, id, messageType, value string, bucketTimestamp time.Time) error {
 	_, err := db.Exec(ctx,

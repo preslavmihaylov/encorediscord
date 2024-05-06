@@ -45,6 +45,9 @@ var findMessagesMatchingTopicPrompt string
 //go:embed answer_forum_post_prompt.txt
 var answerForumPostPrompt string
 
+//go:embed match_message_to_topic_prompt.txt
+var matchMessageToTopicPrompt string
+
 func NewService() (*Service, error) {
 	chatGpt35Client, err := openai.NewChat(openai.WithModel("gpt-3.5-turbo-0613"), openai.WithToken(secrets.OpenAIAPIKey))
 	if err != nil {
@@ -304,4 +307,47 @@ func (s *Service) AnswerForumPost(
 
 	return completion.Content, nil
 	// return result.YourAnswerOrSolution, nil
+}
+
+func (s *Service) MatchMessageToTopic(
+	ctx context.Context,
+	message *models.DiscordRawMessage,
+	topics []string,
+) (string, error) {
+	var llmFunctions = []llms.FunctionDefinition{
+		{
+			Name:        "setTopicForMessage",
+			Description: "Sets the topic for the given message",
+			Parameters: json.RawMessage(fmt.Sprintf(`
+				{
+				  "type": "object",
+				  "properties": {
+					"matchingTopic": {
+					    "type": "string"
+					}
+				  },
+				  "required": ["matchingTopic"]
+				}
+			`)),
+		},
+	}
+
+	completion, err := s.chatGpt35Client.Call(ctx, []schema.ChatMessage{
+		schema.HumanChatMessage{Content: fmt.Sprintf(matchMessageToTopicPrompt, strings.Join(topics, ", "))},
+		schema.HumanChatMessage{Content: "Here's the message you have to match:"},
+		schema.HumanChatMessage{Content: message.CleanContent},
+	}, llms.WithFunctions(llmFunctions))
+	if err != nil {
+		return "", fmt.Errorf("couldn't call openai: %w", err)
+	}
+
+	var result struct {
+		MatchingTopic string `json:"matchingTopic"`
+	}
+
+	if err := json.Unmarshal([]byte(completion.FunctionCall.Arguments), &result); err != nil {
+		return "", fmt.Errorf("couldn't unmarshal function call arguments: %w", err)
+	}
+
+	return result.MatchingTopic, nil
 }
