@@ -130,7 +130,7 @@ func (s *Service) ClassifyDiscordForumPost(ctx context.Context, forumPostEvt *mo
 	}
 
 	highConfidenceMatches := lo.Filter(matches, func(match *pinecone.ScoredVector, _ int) bool {
-		return match.Score > 0.85
+		return match.Score > 0.7
 	})
 
 	if len(highConfidenceMatches) == 0 {
