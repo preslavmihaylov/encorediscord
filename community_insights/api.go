@@ -212,7 +212,7 @@ func (s *Service) GetUserSentiment(ctx context.Context, req *MetricDurationReque
 		if avgSentiment > 0 {
 			positiveSentiments[discordUser.Username] = avgSentiment
 		} else {
-			negativeSentiments[discordUser.Username] = avgSentiment
+			negativeSentiments[discordUser.Username] = -avgSentiment
 		}
 	}
 
