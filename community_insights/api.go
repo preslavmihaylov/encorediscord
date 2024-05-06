@@ -26,7 +26,7 @@ func GetMessageCounts(ctx context.Context, req *MessageCountRequest) (*MessageCo
 		return nil, errors.New("please provide a duration less than or equal to 24 hours")
 	}
 
-	endTime := time.Now().Truncate(time.Hour)
+	endTime := time.Now().UTC().Truncate(time.Hour)
 	startTime := endTime.Add(time.Duration(-int(req.Hours)) * time.Hour)
 
 	hourlyCounts := make(map[time.Time]int)
@@ -54,7 +54,10 @@ func GetMessageCounts(ctx context.Context, req *MessageCountRequest) (*MessageCo
 		if err := rows.Scan(&hour, &count); err != nil {
 			return nil, err
 		}
-		hourlyCounts[hour] = count
+		_, ok := hourlyCounts[hour]
+		if ok {
+			hourlyCounts[hour] = count
+		}
 	}
 
 	if err := rows.Err(); err != nil {
