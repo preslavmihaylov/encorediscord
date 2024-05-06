@@ -100,6 +100,11 @@ func (s *Service) checkConversationAlerts(ctx context.Context) error {
 
 			discordMsgsStr := []string{}
 			matchingMessages := resp.Messages
+			if len(matchingMessages) == 0 {
+				rlog.Info("No messages found matching keyword", "keyword", keyword)
+				continue
+			}
+
 			for _, message := range matchingMessages {
 				discordMsg, err := s.discordClient.ChannelMessage(message.ChannelID, message.ID)
 				if err != nil {
