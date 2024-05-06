@@ -155,11 +155,11 @@ func (s *Service) GetUserSentiment(ctx context.Context, req *MetricDurationReque
 	endTime := time.Now().UTC().Truncate(time.Hour)
 	startTime := endTime.Add(time.Duration(-int(req.Hours)) * time.Hour)
 	query := `
-		SELECT date_trunc('hour', timestamp) AS hour, value
-		FROM community_insights
-		WHERE type = 'sentiment_per_user' AND timestamp BETWEEN $1 AND $2
-		ORDER BY hour
-	`
+	 		SELECT date_trunc('hour', timestamp) AS hour, value
+	 		FROM community_insights
+	 		WHERE type = 'sentiment_per_user' AND timestamp BETWEEN $1 AND $2
+	 		ORDER BY hour
+	 	`
 
 	rows, err := db.Query(ctx, query, startTime, endTime)
 	if err != nil {

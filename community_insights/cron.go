@@ -33,7 +33,7 @@ type FetchMessagesResponse struct {
 
 // encore:api private method=POST path=/fetch-hourly-messages
 func FetchHourlyMessages(ctx context.Context) error {
-	service, err := NewService()
+	service, err := initService()
 	if err != nil {
 		return fmt.Errorf("couldn't create service: %w", err)
 	}

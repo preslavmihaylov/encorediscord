@@ -24,7 +24,7 @@ var secrets struct {
 	DiscordToken string
 }
 
-func NewService() (*Service, error) {
+func initService() (*Service, error) {
 	llmService, err := llmservice.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create llm service: %w", err)
