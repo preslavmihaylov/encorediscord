@@ -64,3 +64,9 @@ const (
 	MessageSentimentNeutral  MessageSentiment = "NEUTRAL"
 	MessageSentimentNegative MessageSentiment = "NEGATIVE"
 )
+
+type MessageSentimentStats struct {
+	Positive int `json:"positive"`
+	Neutral  int `json:"neutral"`
+	Negative int `json:"negative"`
+}

@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	communitymessageindexer "encore.app/community_message_indexer"
+	"encore.app/models"
 	"encore.dev/cron"
 )
 
@@ -51,15 +53,19 @@ func (s *Service) fetchHourlyMessages(ctx context.Context) error {
 
 	resp, err := communitymessageindexer.ListMessages(ctx, req)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while trying to list messages: %w", err)
 	}
 
 	if err := s.addMessageCount(ctx, resp, start); err != nil {
-		return err
+		return fmt.Errorf("error while trying to add message count: %w", err)
 	}
 
 	if err := s.addMessageCountPerTopic(ctx, resp, start); err != nil {
-		return err
+		return fmt.Errorf("error while trying to add message count per topic: %w", err)
+	}
+
+	if err := s.addMessageSentiment(ctx, resp, start); err != nil {
+		return fmt.Errorf("error while trying to add message sentiment: %w", err)
 	}
 
 	return nil
@@ -81,7 +87,7 @@ func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communityme
 	for _, msg := range resp.Messages {
 		topic, err := s.llmService.MatchMessageToTopic(ctx, msg, topics)
 		if err != nil {
-			continue
+			return fmt.Errorf("error while trying to match message to topic: %w", err)
 		}
 		topicCount, ok := topicMessageCount[topic]
 		if ok {
@@ -95,4 +101,42 @@ func (s *Service) addMessageCountPerTopic(ctx context.Context, resp *communityme
 	}
 
 	return addInsight(ctx, uuid.New().String(), "messages_count_per_topic", start, string(messageCountPerTopicJson))
+}
+
+func (s *Service) addMessageSentiment(ctx context.Context, resp *communitymessageindexer.SearchMessagesResponse, start time.Time) error {
+	messageAuthors := lo.Map(resp.Messages, func(msg *models.DiscordRawMessage, _ int) string {
+		return msg.AuthorID
+	})
+
+	authorsToSentimentStats := make(map[string]*models.MessageSentimentStats)
+	for _, messageAuthor := range messageAuthors {
+		authorsToSentimentStats[messageAuthor] = &models.MessageSentimentStats{
+			Positive: 0,
+			Neutral:  0,
+			Negative: 0,
+		}
+	}
+
+	for _, msg := range resp.Messages {
+		sentiment, err := s.llmService.EvaluateMessageSentiment(ctx, msg)
+		if err != nil {
+			return fmt.Errorf("error while trying to evaluate sentiment: %w", err)
+		}
+
+		switch sentiment {
+		case models.MessageSentimentPositive:
+			authorsToSentimentStats[msg.AuthorID].Positive++
+		case models.MessageSentimentNeutral:
+			authorsToSentimentStats[msg.AuthorID].Neutral++
+		case models.MessageSentimentNegative:
+			authorsToSentimentStats[msg.AuthorID].Negative++
+		}
+	}
+
+	jsonVal, err := json.Marshal(authorsToSentimentStats)
+	if err != nil {
+		return err
+	}
+
+	return addInsight(ctx, uuid.New().String(), "sentiment_per_user", start, string(jsonVal))
 }
