@@ -13,6 +13,7 @@ type DiscordRawMessage struct {
 	AuthorID        string                    `json:"authorId"`
 	Content         string                    `json:"content"`
 	CleanContent    string                    `json:"cleanContent"`
+	CreatedAt       string                    `json:"created_at"`
 }
 
 type DiscordForumPostEvent struct {
